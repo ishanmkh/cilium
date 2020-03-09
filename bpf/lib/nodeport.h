@@ -380,6 +380,7 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 	bpf_mark_snat_done(ctx);
 
 	if (dir == NAT_DIR_INGRESS) {
+		ctx->cb[CB_IFINDEX] = NATIVE_DEV_IFINDEX;
 		ep_tail_call(ctx, CILIUM_CALL_IPV6_NODEPORT_REVNAT);
 		ret = DROP_MISSED_TAIL_CALL;
 		goto drop_err;
@@ -498,6 +499,7 @@ static __always_inline int nodeport_lb6(struct __ctx_buff *ctx,
 	case CT_NEW:
 		ct_state_new.src_sec_id = SECLABEL;
 		ct_state_new.node_port = 1;
+		ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
 		ret = ct_create6(get_ct_map6(&tuple), NULL, &tuple, ctx,
 				 CT_EGRESS, &ct_state_new, false);
 		if (IS_ERR(ret))
@@ -521,6 +523,7 @@ redo:
 						   &tuple)) {
 				ct_state_new.src_sec_id = SECLABEL;
 				ct_state_new.node_port = 1;
+				ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
 				goto redo;
 			}
 		}
@@ -660,7 +663,7 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_REVNAT)
 int tail_rev_nodeport_lb6(struct __ctx_buff *ctx)
 {
-	int ifindex = NATIVE_DEV_IFINDEX;
+	int ifindex = ctx->cb[CB_IFINDEX];
 	union macaddr mac = NATIVE_DEV_MAC;
 	int ret = 0;
 
@@ -965,6 +968,7 @@ int tail_nodeport_nat_ipv4(struct __ctx_buff *ctx)
 	bpf_mark_snat_done(ctx);
 
 	if (dir == NAT_DIR_INGRESS) {
+		ctx->cb[CB_IFINDEX] = NATIVE_DEV_IFINDEX;
 		ep_tail_call(ctx, CILIUM_CALL_IPV4_NODEPORT_REVNAT);
 		ret = DROP_MISSED_TAIL_CALL;
 		goto drop_err;
@@ -1083,6 +1087,7 @@ static __always_inline int nodeport_lb4(struct __ctx_buff *ctx,
 	case CT_NEW:
 		ct_state_new.src_sec_id = SECLABEL;
 		ct_state_new.node_port = 1;
+		ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
 		ret = ct_create4(get_ct_map4(&tuple), NULL, &tuple, ctx,
 				 CT_EGRESS, &ct_state_new, false);
 		if (IS_ERR(ret))
@@ -1106,6 +1111,7 @@ redo:
 						   &tuple)) {
 				ct_state_new.src_sec_id = SECLABEL;
 				ct_state_new.node_port = 1;
+				ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
 				goto redo;
 			}
 		}
@@ -1245,7 +1251,7 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_REVNAT)
 int tail_rev_nodeport_lb4(struct __ctx_buff *ctx)
 {
-	int ifindex = NATIVE_DEV_IFINDEX;
+	int ifindex = ctx->cb[CB_IFINDEX];
 	union macaddr mac = NATIVE_DEV_MAC;
 	int ret = 0;
 
