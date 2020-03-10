@@ -292,7 +292,10 @@ function xdp_load()
 	SEC=$6
 	CIDR_MAP=$7
 
-	bpf_compile $IN $OUT obj "$OPTS"
+	NODE_MAC=$(ip link show $DEV | grep ether | awk '{print $2}')
+	NODE_MAC="{.addr=$(mac2array $NODE_MAC)}"
+
+	bpf_compile $IN $OUT obj "$OPTS -DNODE_MAC=${NODE_MAC}"
 
 	ip link set dev $DEV $MODE off
 	rm -f "$CILIUM_BPF_MNT/xdp/globals/$CIDR_MAP" 2> /dev/null || true
@@ -642,8 +645,11 @@ fi
 
 if [ "$XDP_DEV" != "<nil>" ]; then
 	CIDR_MAP="cilium_cidr_v*"
-	COPTS=""
-	xdp_load $XDP_DEV $XDP_MODE "$COPTS" bpf_prefilter.c bpf_prefilter.o from-netdev $CIDR_MAP
+	COPTS="-DSECLABEL=${ID_WORLD} -DCALLS_MAP=cilium_calls_xdp"
+	if [ "$NODE_PORT" = "true" ]; then
+		COPTS="${COPTS} -DLB_L3 -DLB_L4 -DDISABLE_LOOPBACK_LB"
+	fi
+	xdp_load $XDP_DEV $XDP_MODE "$COPTS" bpf_xdp.c bpf_xdp.o from-netdev $CIDR_MAP
 fi
 
 # Compile dummy BPF file containing all shared struct definitions used by
