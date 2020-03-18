@@ -300,7 +300,9 @@ int tail_nodeport_ipv6_dsr(struct __ctx_buff *ctx)
 		return DROP_INVALID;
 
 	fib_params.family = AF_INET6;
+#ifdef NATIVE_DEV_IFINDEX
 	fib_params.ifindex = NATIVE_DEV_IFINDEX;
+#endif
 	ipv6_addr_copy((union v6addr *) &fib_params.ipv6_src, (union v6addr *) &ip6->saddr);
 	ipv6_addr_copy((union v6addr *) &fib_params.ipv6_dst, (union v6addr *) &ip6->daddr);
 
@@ -321,7 +323,12 @@ int tail_nodeport_ipv6_dsr(struct __ctx_buff *ctx)
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_NAT)
 int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 {
-	int ifindex = NATIVE_DEV_IFINDEX, ret, dir = ctx_load_meta(ctx, CB_NAT);
+#ifdef NATIVE_DEV_IFINDEX
+	int ifindex = NATIVE_DEV_IFINDEX;
+#else
+	int ifindex = 0;
+#endif
+	int ret, dir = ctx_load_meta(ctx, CB_NAT);
 	struct bpf_fib_lookup fib_params = {};
 	struct ipv6_nat_target target = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
@@ -331,7 +338,10 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 	void *data, *data_end;
 	struct ipv6hdr *ip6;
 
-	BPF_V6(target.addr, IPV6_NODEPORT);
+#ifdef IPV6_NODEPORT
+	union v6addr tmp = IPV6_NODEPORT;
+	target.addr = tmp;
+#endif
 #ifdef ENCAP_IFINDEX
 	if (dir == NAT_DIR_EGRESS) {
 		struct remote_endpoint_info *info;
@@ -380,7 +390,6 @@ int tail_nodeport_nat_ipv6(struct __ctx_buff *ctx)
 	bpf_mark_snat_done(ctx);
 
 	if (dir == NAT_DIR_INGRESS) {
-		ctx->cb[CB_IFINDEX] = NATIVE_DEV_IFINDEX;
 		ep_tail_call(ctx, CILIUM_CALL_IPV6_NODEPORT_REVNAT);
 		ret = DROP_MISSED_TAIL_CALL;
 		goto drop_err;
@@ -499,7 +508,9 @@ static __always_inline int nodeport_lb6(struct __ctx_buff *ctx,
 	case CT_NEW:
 		ct_state_new.src_sec_id = SECLABEL;
 		ct_state_new.node_port = 1;
+#ifdef NATIVE_DEV_IFINDEX
 		ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
+#endif
 		ret = ct_create6(get_ct_map6(&tuple), NULL, &tuple, ctx,
 				 CT_EGRESS, &ct_state_new, false);
 		if (IS_ERR(ret))
@@ -523,7 +534,9 @@ redo:
 						   &tuple)) {
 				ct_state_new.src_sec_id = SECLABEL;
 				ct_state_new.node_port = 1;
+#ifdef NATIVE_DEV_IFINDEX
 				ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
+#endif
 				goto redo;
 			}
 		}
@@ -561,8 +574,7 @@ redo:
 }
 
 /* See comment in tail_rev_nodeport_lb4(). */
-static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex,
-					    union macaddr *mac)
+static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex)
 {
 	int ret, ret2, l3_off = ETH_HLEN, l4_off, hdrlen;
 	struct ipv6_ct_tuple tuple = {};
@@ -630,7 +642,8 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex
 		if (dmac) {
 			if (eth_store_daddr(ctx, dmac->addr, 0) < 0)
 				return DROP_WRITE_ERROR;
-			if (eth_store_saddr(ctx, mac->addr, 0) < 0)
+			union macaddr mac = NATIVE_DEV_MAC_BY_IFINDEX(*ifindex);
+			if (eth_store_saddr(ctx, mac.addr, 0) < 0)
 				return DROP_WRITE_ERROR;
 		} else {
 			fib_params.family = AF_INET6;
@@ -663,11 +676,10 @@ static __always_inline int rev_nodeport_lb6(struct __ctx_buff *ctx, int *ifindex
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV6_NODEPORT_REVNAT)
 int tail_rev_nodeport_lb6(struct __ctx_buff *ctx)
 {
-	int ifindex = ctx->cb[CB_IFINDEX];
-	union macaddr mac = NATIVE_DEV_MAC_BY_IFINDEX(ifindex);
+	int ifindex = 0;
 	int ret = 0;
 
-	ret = rev_nodeport_lb6(ctx, &ifindex, &mac);
+	ret = rev_nodeport_lb6(ctx, &ifindex);
 	if (IS_ERR(ret))
 		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP, METRIC_EGRESS);
 	return ctx_redirect(ctx, ifindex, 0);
@@ -682,8 +694,8 @@ static __always_inline bool nodeport_uses_dsr4(const struct ipv4_ct_tuple *tuple
 
 static __always_inline bool nodeport_nat_ipv4_needed(struct __ctx_buff *ctx,
 						     __be32 addr, int dir,
-						     bool *from_endpoint,
-						     const bool encap)
+						     bool *from_endpoint __maybe_unused,
+						     const bool encap __maybe_unused)
 {
 	void *data, *data_end;
 	struct iphdr *ip4;
@@ -890,7 +902,9 @@ int tail_nodeport_ipv4_dsr(struct __ctx_buff *ctx)
 		return DROP_INVALID;
 
 	fib_params.family = AF_INET;
+#ifdef NATIVE_DEV_IFINDEX
 	fib_params.ifindex = NATIVE_DEV_IFINDEX;
+#endif
 	fib_params.ipv4_src = ip4->saddr;
 	fib_params.ipv4_dst = ip4->daddr;
 
@@ -911,7 +925,12 @@ int tail_nodeport_ipv4_dsr(struct __ctx_buff *ctx)
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_NAT)
 int tail_nodeport_nat_ipv4(struct __ctx_buff *ctx)
 {
-	int ifindex = NATIVE_DEV_IFINDEX, ret, dir = ctx_load_meta(ctx, CB_NAT);
+#ifdef NATIVE_DEV_IFINDEX
+	int ifindex = NATIVE_DEV_IFINDEX;
+#else
+	int ifindex = 0;
+#endif
+	int ret, dir = ctx_load_meta(ctx, CB_NAT);
 	struct bpf_fib_lookup fib_params = {};
 	struct ipv4_nat_target target = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
@@ -921,7 +940,9 @@ int tail_nodeport_nat_ipv4(struct __ctx_buff *ctx)
 	void *data, *data_end;
 	struct iphdr *ip4;
 
+#ifdef IPV4_NODEPORT
 	target.addr = IPV4_NODEPORT;
+#endif
 #ifdef ENCAP_IFINDEX
 	if (dir == NAT_DIR_EGRESS) {
 		struct remote_endpoint_info *info;
@@ -968,7 +989,6 @@ int tail_nodeport_nat_ipv4(struct __ctx_buff *ctx)
 	bpf_mark_snat_done(ctx);
 
 	if (dir == NAT_DIR_INGRESS) {
-		ctx->cb[CB_IFINDEX] = NATIVE_DEV_IFINDEX;
 		ep_tail_call(ctx, CILIUM_CALL_IPV4_NODEPORT_REVNAT);
 		ret = DROP_MISSED_TAIL_CALL;
 		goto drop_err;
@@ -1062,14 +1082,10 @@ static __always_inline int nodeport_lb4(struct __ctx_buff *ctx,
 		if (svc)
 			return DROP_IS_CLUSTER_IP;
 
-		if (nodeport_uses_dsr4(&tuple)) {
-			return CTX_ACT_OK;
-		} else {
-			ctx_store_meta(ctx, CB_NAT, NAT_DIR_INGRESS);
-			ctx_store_meta(ctx, CB_SRC_IDENTITY, src_identity);
-			ep_tail_call(ctx, CILIUM_CALL_IPV4_NODEPORT_NAT);
-			return DROP_MISSED_TAIL_CALL;
-		}
+		ctx_store_meta(ctx, CB_NAT, NAT_DIR_INGRESS);
+		ctx_store_meta(ctx, CB_SRC_IDENTITY, src_identity);
+		ep_tail_call(ctx, CILIUM_CALL_IPV4_NODEPORT_NAT);
+		return DROP_MISSED_TAIL_CALL;
 	}
 
 	ret = ct_lookup4(get_ct_map4(&tuple), &tuple, ctx, l4_off, CT_EGRESS,
@@ -1087,7 +1103,9 @@ static __always_inline int nodeport_lb4(struct __ctx_buff *ctx,
 	case CT_NEW:
 		ct_state_new.src_sec_id = SECLABEL;
 		ct_state_new.node_port = 1;
+#ifdef NATIVE_DEV_IFINDEX
 		ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
+#endif
 		ret = ct_create4(get_ct_map4(&tuple), NULL, &tuple, ctx,
 				 CT_EGRESS, &ct_state_new, false);
 		if (IS_ERR(ret))
@@ -1111,7 +1129,9 @@ redo:
 						   &tuple)) {
 				ct_state_new.src_sec_id = SECLABEL;
 				ct_state_new.node_port = 1;
+#ifdef NATIVE_DEV_IFINDEX
 				ct_state_new.ifindex = NATIVE_DEV_IFINDEX;
+#endif
 				goto redo;
 			}
 		}
@@ -1153,8 +1173,7 @@ redo:
  * CILIUM_CALL_IPV{4,6}_NODEPORT_REVNAT is plugged into CILIUM_MAP_CALLS
  * of the bpf_netdev, bpf_overlay and of the bpf_lxc.
  */
-static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex,
-					    union macaddr *mac)
+static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex)
 {
 	struct ipv4_ct_tuple tuple = {};
 	void *data, *data_end;
@@ -1190,6 +1209,8 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex
 			return DROP_INVALID;
 
 		bpf_mark_snat_done(ctx);
+
+		*ifindex = ct_state.ifindex;
 #ifdef ENCAP_IFINDEX
 		{
 			struct remote_endpoint_info *info;
@@ -1216,10 +1237,11 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex
 
 		dmac = map_lookup_elem(&NODEPORT_NEIGH4, &ip4->daddr);
 		if (dmac) {
-		    if (eth_store_daddr(ctx, dmac->addr, 0) < 0)
-			return DROP_WRITE_ERROR;
-		    if (eth_store_saddr(ctx, mac->addr, 0) < 0)
-			return DROP_WRITE_ERROR;
+			if (eth_store_daddr(ctx, dmac->addr, 0) < 0)
+				return DROP_WRITE_ERROR;
+			union macaddr tmp = NATIVE_DEV_MAC_BY_IFINDEX(*ifindex);
+			if (eth_store_saddr(ctx, tmp.addr, 0) < 0)
+				return DROP_WRITE_ERROR;
 		} else {
 		    fib_params.family = AF_INET;
 		    fib_params.ifindex = *ifindex;
@@ -1251,11 +1273,10 @@ static __always_inline int rev_nodeport_lb4(struct __ctx_buff *ctx, int *ifindex
 __section_tail(CILIUM_MAP_CALLS, CILIUM_CALL_IPV4_NODEPORT_REVNAT)
 int tail_rev_nodeport_lb4(struct __ctx_buff *ctx)
 {
-	int ifindex = ctx->cb[CB_IFINDEX];
-	union macaddr mac = NATIVE_DEV_MAC_BY_IFINDEX(ifindex);
+	int ifindex = 0;
 	int ret = 0;
 
-	ret = rev_nodeport_lb4(ctx, &ifindex, &mac);
+	ret = rev_nodeport_lb4(ctx, &ifindex);
 	if (IS_ERR(ret))
 		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP, METRIC_EGRESS);
 	return ctx_redirect(ctx, ifindex, 0);
@@ -1272,25 +1293,35 @@ static __always_inline int nodeport_nat_fwd(struct __ctx_buff *ctx,
 	switch (proto) {
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP): {
-		__be32 addr;
+		__be32 addr = 0;
 #ifdef ENCAP_IFINDEX
 		if (encap)
 			addr = IPV4_GATEWAY;
 		else
 #endif
+#ifdef IPV4_NODEPORT
 			addr = IPV4_NODEPORT;
+#else
+			;
+#endif
 		return nodeport_nat_ipv4_fwd(ctx, addr, encap);
 	}
 #endif /* ENABLE_IPV4 */
 #ifdef ENABLE_IPV6
 	case bpf_htons(ETH_P_IPV6): {
-		union v6addr addr;
+		union v6addr addr = { .p1 = 0 };
 #ifdef ENCAP_IFINDEX
 		if (encap)
 			BPF_V6(addr, ROUTER_IP);
-		else
+		else {
 #endif
-			BPF_V6(addr, IPV6_NODEPORT);
+#ifdef IPV6_NODEPORT
+			union v6addr tmp = IPV6_NODEPORT;
+			addr = tmp;
+#endif
+#ifdef ENCAP_IFINDEX
+		}
+#endif
 		return nodeport_nat_ipv6_fwd(ctx, &addr);
 	}
 #endif /* ENABLE_IPV6 */
