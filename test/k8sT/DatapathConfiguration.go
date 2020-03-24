@@ -372,6 +372,9 @@ var _ = Describe("K8sDatapathConfig", func() {
 			tmpEchoPodPath = strings.Trim(res.GetStdOut(), "\n")
 			kubectl.ExecMiddle(fmt.Sprintf("sed 's/NODE_WITHOUT_CILIUM/%s/' %s > %s",
 				helpers.GetNodeWithoutCilium(), echoPodPath, tmpEchoPodPath)).ExpectSuccess()
+			kubectl.ApplyDefault(tmpEchoPodPath).ExpectSuccess("Cannot install echoserver application")
+			Expect(kubectl.WaitforPods(helpers.DefaultNamespace, "-l name=echoserver-hostnetns",
+				helpers.HelperTimeout)).Should(BeNil())
 
 			// Setup ip-masq-agent configmap dir
 			res = kubectl.ExecMiddle("mktemp -d")
@@ -435,12 +438,6 @@ var _ = Describe("K8sDatapathConfig", func() {
 				"global.tunnel":                 "disabled",
 				"global.autoDirectNodeRoutes":   "true",
 			})
-			// echoserver cannot be deployed in BeforeAll(), as this requires Cilium
-			// up and running in k8s v1.11. So, deploy it here after Cilium has been
-			// deployed.
-			kubectl.ApplyDefault(tmpEchoPodPath).ExpectSuccess("Cannot install echoserver application")
-			Expect(kubectl.WaitforPods(helpers.DefaultNamespace, "-l app=echoserver", helpers.HelperTimeout)).
-				Should(BeNil())
 
 			testIPMasqAgent()
 		})
