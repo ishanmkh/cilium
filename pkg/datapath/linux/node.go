@@ -49,7 +49,7 @@ type linuxNodeHandler struct {
 	datapathConfig       DatapathConfiguration
 	nodes                map[node.Identity]*node.Node
 	enableNeighDiscovery bool
-	neighByNode          map[node.Identity][]*netlink.Neigh
+	neighByNode          map[node.Identity]*netlink.Neigh
 }
 
 // NewNodeHandler returns a new node handler to handle node events and
@@ -59,7 +59,7 @@ func NewNodeHandler(datapathConfig DatapathConfiguration, nodeAddressing datapat
 		nodeAddressing: nodeAddressing,
 		datapathConfig: datapathConfig,
 		nodes:          map[node.Identity]*node.Node{},
-		neighByNode:    map[node.Identity][]*netlink.Neigh{},
+		neighByNode:    map[node.Identity]*netlink.Neigh{},
 	}
 }
 
@@ -596,7 +596,7 @@ func (n *linuxNodeHandler) insertNeighbor(newNode *node.Node, ifaceName string) 
 		err := netlink.NeighSet(&neigh)
 		neighborLog("insertNeighbor NeighSet", ifaceName, err, &ciliumIPv4, &hwAddr, link)
 		if err == nil {
-			n.neighByNode[newNode.Identity()] = append(n.neighByNode[newNode.Identity()], &neigh)
+			n.neighByNode[newNode.Identity()] = &neigh
 		}
 	} else {
 		neighborLog("insertNeighbor arping failed", ifaceName, err, &ciliumIPv4, &hwAddr, link)
@@ -604,19 +604,17 @@ func (n *linuxNodeHandler) insertNeighbor(newNode *node.Node, ifaceName string) 
 }
 
 func (n *linuxNodeHandler) deleteNeighbor(oldNode *node.Node) {
-	neighs, ok := n.neighByNode[oldNode.Identity()]
+	neigh, ok := n.neighByNode[oldNode.Identity()]
 	if !ok {
 		return
 	}
 
-	for _, neigh := range neighs {
-		if err := netlink.NeighDel(neigh); err != nil {
-			log.WithFields(logrus.Fields{
-				logfields.IPAddr: neigh.IP,
-				"HardwareAddr":   neigh.HardwareAddr,
-				"LinkIndex":      neigh.LinkIndex,
-			}).WithError(err).Warn("Failed to remove neighbor entry")
-		}
+	if err := netlink.NeighDel(neigh); err != nil {
+		log.WithFields(logrus.Fields{
+			logfields.IPAddr: neigh.IP,
+			"HardwareAddr":   neigh.HardwareAddr,
+			"LinkIndex":      neigh.LinkIndex,
+		}).WithError(err).Warn("Failed to remove neighbor entry")
 	}
 }
 
@@ -700,13 +698,13 @@ func (n *linuxNodeHandler) nodeUpdate(oldNode, newNode *node.Node, firstAddition
 	}
 
 	if n.enableNeighDiscovery {
+		var ifaceName string
 		if option.Config.EnableNodePort {
-			for _, dev := range option.Config.Devices {
-				n.insertNeighbor(newNode, dev)
-			}
+			ifaceName = option.Config.Devices[0]
 		} else {
-			n.insertNeighbor(newNode, option.Config.EncryptInterface)
+			ifaceName = option.Config.EncryptInterface
 		}
+		n.insertNeighbor(newNode, ifaceName)
 	}
 
 	if n.nodeConfig.EnableIPSec {
