@@ -30,7 +30,7 @@ import (
 	k8smetrics "github.com/cilium/cilium/pkg/k8s/metrics"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/lock"
-	"github.com/cilium/cilium/pkg/node"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/status"
 
@@ -212,14 +212,14 @@ type clusterNodesClient struct {
 	*models.ClusterNodeStatus
 }
 
-func (c *clusterNodesClient) NodeAdd(newNode node.Node) error {
+func (c *clusterNodesClient) NodeAdd(newNode nodeTypes.Node) error {
 	c.Lock()
 	c.NodesAdded = append(c.NodesAdded, newNode.GetModel())
 	c.Unlock()
 	return nil
 }
 
-func (c *clusterNodesClient) NodeUpdate(oldNode, newNode node.Node) error {
+func (c *clusterNodesClient) NodeUpdate(oldNode, newNode nodeTypes.Node) error {
 	c.Lock()
 	c.NodesAdded = append(c.NodesAdded, newNode.GetModel())
 	c.NodesRemoved = append(c.NodesRemoved, oldNode.GetModel())
@@ -227,7 +227,7 @@ func (c *clusterNodesClient) NodeUpdate(oldNode, newNode node.Node) error {
 	return nil
 }
 
-func (c *clusterNodesClient) NodeDelete(node node.Node) error {
+func (c *clusterNodesClient) NodeDelete(node nodeTypes.Node) error {
 	c.Lock()
 	// If the node was added/updated and removed before the clusterNodesClient
 	// was aware of it then we can safely remove it from the list of added
@@ -247,7 +247,7 @@ func (c *clusterNodesClient) NodeDelete(node node.Node) error {
 	return nil
 }
 
-func (c *clusterNodesClient) NodeValidateImplementation(node node.Node) error {
+func (c *clusterNodesClient) NodeValidateImplementation(node nodeTypes.Node) error {
 	// no-op
 	return nil
 }

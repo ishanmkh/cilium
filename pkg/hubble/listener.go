@@ -21,7 +21,7 @@ import (
 
 	"github.com/cilium/cilium/pkg/monitor/agent/listener"
 	"github.com/cilium/cilium/pkg/monitor/payload"
-	"github.com/cilium/cilium/pkg/node"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 )
 
 type hubbleListener struct {
@@ -43,7 +43,7 @@ func (ml *hubbleListener) Enqueue(pl *payload.Payload) {
 		Lost:     pl.Lost,
 		Type:     flow.EventType(pl.Type),
 		Time:     types.TimestampNow(),
-		HostName: node.GetName(),
+		HostName: nodeTypes.GetName(),
 	}
 	select {
 	case ml.observer.GetEventsChannel() <- grpcPl:

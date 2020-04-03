@@ -26,13 +26,13 @@ import (
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/k8s/types"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/addressing"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -54,12 +54,12 @@ func ParseNodeAddressType(k8sAddress v1.NodeAddressType) (addressing.AddressType
 }
 
 // ParseNode parses a kubernetes node to a cilium node
-func ParseNode(k8sNode *types.Node, source source.Source) *node.Node {
+func ParseNode(k8sNode *types.Node, source source.Source) *nodeTypes.Node {
 	scopedLog := log.WithFields(logrus.Fields{
 		logfields.NodeName:  k8sNode.Name,
 		logfields.K8sNodeID: k8sNode.UID,
 	})
-	addrs := []node.Address{}
+	addrs := []nodeTypes.Address{}
 	for _, addr := range k8sNode.StatusAddresses {
 		// We only care about this address types,
 		// we ignore all other types.
@@ -88,7 +88,7 @@ func ParseNode(k8sNode *types.Node, source source.Source) *node.Node {
 			scopedLog.WithError(err).Warn("invalid address type for node")
 		}
 
-		na := node.Address{
+		na := nodeTypes.Address{
 			Type: addressType,
 			IP:   ip,
 		}
@@ -101,7 +101,7 @@ func ParseNode(k8sNode *types.Node, source source.Source) *node.Node {
 		} else if ip := net.ParseIP(ciliumInternalIP); ip == nil {
 			scopedLog.Debugf("ParseIP %s error", ciliumInternalIP)
 		} else {
-			na := node.Address{
+			na := nodeTypes.Address{
 				Type: addressing.NodeCiliumInternalIP,
 				IP:   ip,
 			}
@@ -120,7 +120,7 @@ func ParseNode(k8sNode *types.Node, source source.Source) *node.Node {
 		}
 	}
 
-	newNode := &node.Node{
+	newNode := &nodeTypes.Node{
 		Name:          k8sNode.Name,
 		Cluster:       option.Config.ClusterName,
 		IPAddresses:   addrs,

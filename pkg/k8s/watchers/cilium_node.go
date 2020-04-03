@@ -23,7 +23,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/informer"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/lock"
-	"github.com/cilium/cilium/pkg/node"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/serializer"
 
 	v1 "k8s.io/api/core/v1"
@@ -49,7 +49,7 @@ func (k *K8sWatcher) ciliumNodeInit(ciliumNPClient *k8s.K8sCiliumClient, serNode
 					defer func() { k.K8sEventReceived(metricCiliumNode, metricCreate, valid, equal) }()
 					if ciliumNode, ok := obj.(*cilium_v2.CiliumNode); ok {
 						valid = true
-						n := node.ParseCiliumNode(ciliumNode)
+						n := nodeTypes.ParseCiliumNode(ciliumNode)
 						if n.IsLocal() {
 							return
 						}
@@ -67,7 +67,7 @@ func (k *K8sWatcher) ciliumNodeInit(ciliumNPClient *k8s.K8sCiliumClient, serNode
 					defer func() { k.K8sEventReceived(metricCiliumNode, metricUpdate, valid, equal) }()
 					if ciliumNode, ok := newObj.(*cilium_v2.CiliumNode); ok {
 						valid = true
-						n := node.ParseCiliumNode(ciliumNode)
+						n := nodeTypes.ParseCiliumNode(ciliumNode)
 						if n.IsLocal() {
 							return
 						}
@@ -98,7 +98,7 @@ func (k *K8sWatcher) ciliumNodeInit(ciliumNPClient *k8s.K8sCiliumClient, serNode
 						}
 					}
 					valid = true
-					n := node.ParseCiliumNode(ciliumNode)
+					n := nodeTypes.ParseCiliumNode(ciliumNode)
 					swgNodes.Add()
 					serNodes.Enqueue(func() error {
 						defer swgNodes.Done()
