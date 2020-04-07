@@ -412,4 +412,15 @@ func FormatStatusResponse(w io.Writer, sr *models.StatusResponse, allAddresses, 
 	} else {
 		fmt.Fprintf(w, "Proxy Status:\tNo managed proxy redirect\n")
 	}
+
+	if sr.Hubble != nil {
+		h := sr.Hubble
+		msg := h.Msg
+		if h.State == models.HubbleStatusStateOk && msg == "" && h.MaxFlows > 0 {
+			msg = fmt.Sprintf("Current/Max Flows: %d/%d (%.2f%%)",
+				h.CurrentFlows, sr.Hubble.MaxFlows, (float64(h.CurrentFlows)/float64(h.MaxFlows))*100)
+		}
+
+		fmt.Fprintf(w, "Hubble:\t%s\t%s\n", h.State, msg)
+	}
 }
