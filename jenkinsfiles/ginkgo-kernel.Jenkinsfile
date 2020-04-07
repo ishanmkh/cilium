@@ -118,7 +118,7 @@ pipeline {
                 retry(3) {
                     timeout(time: 45, unit: 'MINUTES'){
                         dir("${TESTDIR}") {
-                            sh 'CILIUM_REGISTRY="$(./print-node-ip.sh)" ./vagrant-ci-start.sh'
+                            sh 'CILIUM_REGISTRY="$(./print-node-ip.sh) KERNEL=$KERNEL" ./vagrant-ci-start.sh'
                         }
                     }
                 }
@@ -178,5 +178,5 @@ pipeline {
 }
 
 def get_kernel() {
-    sh 'python get-gh-comment-info.py ${ghprbCommentBody} --retrieve=version | sed "s/^$/${DEFAULT_KERNEL}/"'
+    sh(script: 'python get-gh-comment-info.py ${ghprbCommentBody} --retrieve=version | sed "s/^$/${DEFAULT_KERNEL}/"', returnStdout: true)
 }
