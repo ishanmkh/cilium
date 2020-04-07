@@ -605,7 +605,7 @@ func init() {
     },
     "/healthz": {
       "get": {
-        "description": "Returns health and status information of the Cilium daemon and related\ncomponents such as the local container runtime, connected datastore,\nKubernetes integration.\n",
+        "description": "Returns health and status information of the Cilium daemon and related\ncomponents such as the local container runtime, connected datastore,\nKubernetes integration and Hubble.\n",
         "tags": [
           "daemon"
         ],
@@ -2228,6 +2228,34 @@ func init() {
         }
       }
     },
+    "HubbleStatus": {
+      "description": "Status of the Hubble server",
+      "type": "object",
+      "properties": {
+        "current-flows": {
+          "description": "Current number of flows this Hubble server instance stores",
+          "type": "integer"
+        },
+        "max-flows": {
+          "description": "Maximum number of flows this Hubble server instance is able to store",
+          "type": "integer"
+        },
+        "msg": {
+          "description": "Human readable status/error/warning message",
+          "type": "string"
+        },
+        "state": {
+          "description": "State the component is in",
+          "type": "string",
+          "enum": [
+            "Ok",
+            "Warning",
+            "Failure",
+            "Disabled"
+          ]
+        }
+      }
+    },
     "IPAMAddressResponse": {
       "description": "IPAM configuration of an individual address family",
       "type": "object",
@@ -3124,6 +3152,10 @@ func init() {
           "description": "Status of all endpoint controllers",
           "$ref": "#/definitions/ControllerStatuses"
         },
+        "hubble": {
+          "description": "Status of Hubble server",
+          "$ref": "#/definitions/HubbleStatus"
+        },
         "ipam": {
           "description": "Status of IP address management",
           "$ref": "#/definitions/IPAMStatus"
@@ -4006,7 +4038,7 @@ func init() {
     },
     "/healthz": {
       "get": {
-        "description": "Returns health and status information of the Cilium daemon and related\ncomponents such as the local container runtime, connected datastore,\nKubernetes integration.\n",
+        "description": "Returns health and status information of the Cilium daemon and related\ncomponents such as the local container runtime, connected datastore,\nKubernetes integration and Hubble.\n",
         "tags": [
           "daemon"
         ],
@@ -5706,6 +5738,34 @@ func init() {
         }
       }
     },
+    "HubbleStatus": {
+      "description": "Status of the Hubble server",
+      "type": "object",
+      "properties": {
+        "current-flows": {
+          "description": "Current number of flows this Hubble server instance stores",
+          "type": "integer"
+        },
+        "max-flows": {
+          "description": "Maximum number of flows this Hubble server instance is able to store",
+          "type": "integer"
+        },
+        "msg": {
+          "description": "Human readable status/error/warning message",
+          "type": "string"
+        },
+        "state": {
+          "description": "State the component is in",
+          "type": "string",
+          "enum": [
+            "Ok",
+            "Warning",
+            "Failure",
+            "Disabled"
+          ]
+        }
+      }
+    },
     "IPAMAddressResponse": {
       "description": "IPAM configuration of an individual address family",
       "type": "object",
@@ -6601,6 +6661,10 @@ func init() {
         "controllers": {
           "description": "Status of all endpoint controllers",
           "$ref": "#/definitions/ControllerStatuses"
+        },
+        "hubble": {
+          "description": "Status of Hubble server",
+          "$ref": "#/definitions/HubbleStatus"
         },
         "ipam": {
           "description": "Status of IP address management",
