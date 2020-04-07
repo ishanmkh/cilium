@@ -15,8 +15,10 @@
 package cmd
 
 import (
+	"context"
 	"strings"
 
+	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/api"
 	"github.com/cilium/cilium/pkg/hubble"
 	"github.com/cilium/cilium/pkg/ipcache"
@@ -24,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
 
+	"github.com/cilium/hubble/api/v1/observer"
 	hubbleServe "github.com/cilium/hubble/cmd/serve"
 	hubbleMetrics "github.com/cilium/hubble/pkg/metrics"
 	"github.com/cilium/hubble/pkg/parser"
@@ -31,6 +34,33 @@ import (
 	"github.com/cilium/hubble/pkg/server/serveroption"
 	"github.com/sirupsen/logrus"
 )
+
+func (d *Daemon) getHubbleStatus(ctx context.Context) *models.HubbleStatus {
+	if !option.Config.EnableHubble {
+		return &models.HubbleStatus{State: models.HubbleStatusStateDisabled}
+	}
+
+	if d.hubbleServer == nil {
+		return &models.HubbleStatus{
+			State: models.HubbleStatusStateWarning,
+			Msg:   "Server not initialized",
+		}
+	}
+
+	req := &observer.ServerStatusRequest{}
+	status, err := d.hubbleServer.ServerStatus(ctx, req)
+	if err != nil {
+		return &models.HubbleStatus{State: models.HubbleStatusStateFailure, Msg: err.Error()}
+	}
+
+	hubbleStatus := &models.HubbleStatus{
+		State:        models.StatusStateOk,
+		MaxFlows:     int64(status.MaxFlows),
+		CurrentFlows: int64(status.NumFlows),
+	}
+
+	return hubbleStatus
+}
 
 func (d *Daemon) launchHubble() {
 	logger := logging.DefaultLogger.WithField(logfields.LogSubsys, "hubble")
@@ -50,7 +80,7 @@ func (d *Daemon) launchHubble() {
 		logger.WithError(err).Error("Failed to initialize Hubble")
 		return
 	}
-	observerServer, err := hubbleServer.NewLocalServer(payloadParser, logger,
+	d.hubbleServer, err = hubbleServer.NewLocalServer(payloadParser, logger,
 		serveroption.WithMaxFlows(option.Config.HubbleFlowBufferSize),
 		serveroption.WithMonitorBuffer(option.Config.HubbleEventQueueSize),
 		serveroption.WithCiliumDaemon(d))
@@ -58,13 +88,13 @@ func (d *Daemon) launchHubble() {
 		logger.WithError(err).Error("Failed to initialize Hubble")
 		return
 	}
-	go observerServer.Start()
-	d.monitorAgent.GetMonitor().RegisterNewListener(d.ctx, hubble.NewHubbleListener(observerServer))
+	go d.hubbleServer.Start()
+	d.monitorAgent.GetMonitor().RegisterNewListener(d.ctx, hubble.NewHubbleListener(d.hubbleServer))
 
 	srv, err := hubbleServe.NewServer(logger,
 		hubbleServe.WithListeners(addresses, api.CiliumGroupName),
 		hubbleServe.WithHealthService(),
-		hubbleServe.WithObserverService(observerServer),
+		hubbleServe.WithObserverService(d.hubbleServer),
 	)
 	if err != nil {
 		logger.WithError(err).Error("Failed to initialize Hubble server")
