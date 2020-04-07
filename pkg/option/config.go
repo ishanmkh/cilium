@@ -303,13 +303,6 @@ const (
 	// ("snat", "dsr" or "hybrid")
 	NodePortMode = "node-port-mode"
 
-	// NodePortAcceleration indicates whether NodePort should be accelerated
-	// via XDP ("none", "generic" or "native")
-	NodePortAcceleration = "node-port-acceleration"
-
-	// NodePortRange defines a custom range where to look up NodePort services
-	NodePortRange = "node-port-range"
-
 	// EnableAutoProtectNodePortRange enables appending NodePort range to
 	// net.ipv4.ip_local_reserved_ports if it overlaps with ephemeral port
 	// range (net.ipv4.ip_local_port_range)
@@ -318,6 +311,9 @@ const (
 	// KubeProxyReplacement controls how to enable kube-proxy replacement
 	// features in BPF datapath
 	KubeProxyReplacement = "kube-proxy-replacement"
+
+	// NodePortRange defines a custom range where to look up NodePort services
+	NodePortRange = "node-port-range"
 
 	// LibDir enables the directory path to store runtime build environment
 	LibDir = "lib-dir"
@@ -731,24 +727,6 @@ const (
 
 	// UpdateEC2AdapterLimitViaAPI configures the operator to use the EC2 API to fill out the instnacetype to adapter limit mapping
 	UpdateEC2AdapterLimitViaAPI = "update-ec2-apdater-limit-via-api"
-
-	// XDPModeNative for loading progs with XDPModeLinkDriver
-	XDPModeNative = "native"
-
-	// XDPModeGeneric for loading progs with XDPModeLinkGeneric
-	XDPModeGeneric = "generic"
-
-	// XDPModeNone for not having XDP enabled
-	XDPModeNone = "none"
-
-	// XDPModeLinkDriver is the tc selector for native XDP
-	XDPModeLinkDriver = "xdpdrv"
-
-	// XDPModeLinkGeneric is the tc selector for generic XDP
-	XDPModeLinkGeneric = "xdpgeneric"
-
-	// XDPModeLinkNone for not having XDP enabled
-	XDPModeLinkNone = XDPModeNone
 
 	// K8sClientQPSLimit is the queries per second limit for the K8s client. Defaults to k8s client defaults.
 	K8sClientQPSLimit = "k8s-client-qps"
@@ -1187,15 +1165,6 @@ const (
 	// NodePortModeHybrid is a dual mode of the above, that is, DSR for TCP and SNAT for UDP
 	NodePortModeHybrid = "hybrid"
 
-	// NodePortAccelerationNone means we do not accelerate NodePort via XDP
-	NodePortAccelerationNone = "none"
-
-	// NodePortAccelerationGeneric means we accelerate NodePort via generic XDP
-	NodePortAccelerationGeneric = "generic"
-
-	// NodePortAccelerationNative means we accelerate NodePort via native XDP in the driver (preferred)
-	NodePortAccelerationNative = "native"
-
 	// KubeProxyReplacementProbe specifies to auto-enable available features for
 	// kube-proxy replacement
 	KubeProxyReplacementProbe = "probe"
@@ -1286,10 +1255,8 @@ type DaemonConfig struct {
 	RunDir           string     // Cilium runtime directory
 	NAT46Prefix      *net.IPNet // NAT46 IPv6 Prefix
 	Device           string     // Receive device
-	DevicePreFilter  string     // Prefilter device
-	ModePreFilter    string     // Prefilter mode
-	XDPDevice        string     // XDP device
-	XDPMode          string     // XDP mode, values: { xdpdrv | xdpgeneric | none }
+	DevicePreFilter  string     // XDP device
+	ModePreFilter    string     // XDP mode, values: { native | generic }
 	HostV4Addr       net.IP     // Host v4 address of the snooping device
 	HostV6Addr       net.IP     // Host v6 address of the snooping device
 	EncryptInterface string     // Set with name of network facing interface to encrypt
@@ -1713,10 +1680,6 @@ type DaemonConfig struct {
 	// NodePortMode indicates in which mode NodePort implementation should run
 	// ("snat", "dsr" or "hybrid")
 	NodePortMode string
-
-	// NodePortAcceleration indicates whether NodePort should be accelerated
-	// via XDP ("none", "generic" or "native")
-	NodePortAcceleration string
 
 	// EnableAutoProtectNodePortRange enables appending NodePort range to
 	// net.ipv4.ip_local_reserved_ports if it overlaps with ephemeral port
@@ -2315,7 +2278,6 @@ func (c *DaemonConfig) Populate() {
 	c.EnableTracing = viper.GetBool(EnableTracing)
 	c.EnableNodePort = viper.GetBool(EnableNodePort)
 	c.NodePortMode = viper.GetString(NodePortMode)
-	c.NodePortAcceleration = viper.GetString(NodePortAcceleration)
 	c.EnableAutoProtectNodePortRange = viper.GetBool(EnableAutoProtectNodePortRange)
 	c.KubeProxyReplacement = viper.GetString(KubeProxyReplacement)
 	c.EnableCEPGC = viper.GetBool(EnableCEPGC)
@@ -2464,9 +2426,6 @@ func (c *DaemonConfig) Populate() {
 			}).Warning("IPv6PodSubnets parameter can not be parsed.")
 	}
 	c.IPv6PodSubnets = subnets
-
-	c.XDPDevice = "undefined"
-	c.XDPMode = XDPModeLinkNone
 
 	err = c.populateNodePortRange()
 	if err != nil {
